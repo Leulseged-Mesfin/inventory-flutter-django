@@ -1,5 +1,5 @@
 db.sqlite3
-.env
+# .env
 .venv_inventory
 /media
-/main_project/settings.py
+# /main_project/settings.py
