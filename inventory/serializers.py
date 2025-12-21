@@ -49,8 +49,8 @@ class SupplierSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data, user=None):
         # Add the user to the validated_data if provided
-        if user:
-            validated_data['user'] = user.name
+        # if user:
+        #     validated_data['user'] = user.name
         return super().create(validated_data)
 
 
@@ -369,8 +369,8 @@ class CustomerInfoSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data, user=None):
         # Add the user to the validated_data if provided
-        if user:
-            validated_data['user'] = user.name
+        # if user:
+        #     validated_data['user'] = user.name
         return super().create(validated_data)
 
 class CompanyInfoSerializer(serializers.ModelSerializer):
@@ -1011,7 +1011,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
-        # print("items", items_data)
+        print("items", items_data)
 
         user = self.context['request'].user
         user_role = user.role
@@ -1028,6 +1028,7 @@ class OrderSerializer(serializers.ModelSerializer):
         old_unpaid = instance.unpaid_amount
 
         # print("old_paid", old_paid)
+        print(user_role)
 
         # If a salesman tries to cancel, set to Pending and raise error
         if new_status == 'Cancelled' and user_role == 'Salesman' or new_status == 'Cancelled' and user_role == 'Sales Manager':
@@ -1080,10 +1081,10 @@ class OrderSerializer(serializers.ModelSerializer):
             for item_data in items_data:
                 item_id = item_data.get('id')
 
-                user = self.context['request'].user
-                user_role = user.role
-                # user_name = user.name
-                user_name = "User"
+                # user = self.context['request'].user
+                # user_role = user.role
+                # # user_name = user.name
+                # user_name = "User"
                 # Update order fields directly
                 new_quantity = item_data.get('quantity')
                 new_status = item_data.get('status')
@@ -1463,8 +1464,8 @@ class OtherExpensesSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def create(self, validated_data, user=None):
-        if user:
-            validated_data['user'] = user.name
+        # if user:
+        #     validated_data['user'] = user.name
         return super().create(validated_data)
 
 class OtherExpensesGetSerializer(serializers.ModelSerializer):
@@ -1475,8 +1476,8 @@ class OtherExpensesGetSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def create(self, validated_data, user=None):
-        if user:
-            validated_data['user'] = user.name
+        # if user:
+        #     validated_data['user'] = user.name
         return super().create(validated_data)
 
 class ProductGetReportSerializer(serializers.ModelSerializer):

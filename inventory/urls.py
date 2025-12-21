@@ -69,6 +69,9 @@ from .views import (
     ProductWithBundleAPIView,
     ProductWithOutBundleAPIView,
 
+    TotalOrderAPIView,
+    TotalProductAPIView,
+
 )
 
 urlpatterns = [
@@ -139,4 +142,7 @@ urlpatterns = [
 
     path('product_with_bundle/', ProductWithBundleAPIView.as_view(), name='product-with-bundle-retrieve'),
     path('product_with_out_bundle/', ProductWithOutBundleAPIView.as_view(), name='product-with-out-bundle-retrieve'),
+
+    path('total-order/', TotalOrderAPIView.as_view(), name='total-order'),
+    path('total-product/', TotalProductAPIView.as_view(), name='total-product'),
 ]
