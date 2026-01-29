@@ -69,6 +69,7 @@ from .views import (
     ProductWithBundleAPIView,
     ProductWithOutBundleAPIView,
 
+
     PerformaCustomerListCreateView,
     PerformaCustomerDetailView,
     PerformaPerformaListCreateView,
@@ -88,6 +89,9 @@ from .views import (
     SupplierReport,
     ExpenseReport,
     SupplierReportView,
+
+    TotalOrderAPIView,
+    TotalProductAPIView,
 
 )
 
@@ -179,4 +183,6 @@ urlpatterns = [
     path('purchase-suppliers/<int:supplier_id>/report', SupplierReportView.as_view(), name='purchase-supplier-report'),
     path('purchase-expenses/<int:expense_id>/logs', ExpenseLogListView.as_view(), name='purchase-expense-logs'),
     path('purchase-expenses/<int:expense_id>/report', ExpenseReport.as_view(), name='purchase-expense-report'),
+    path('total-order/', TotalOrderAPIView.as_view(), name='total-order'),
+    path('total-product/', TotalProductAPIView.as_view(), name='total-product'),
 ]

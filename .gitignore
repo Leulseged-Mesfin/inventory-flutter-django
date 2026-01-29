@@ -1,4 +1,9 @@
 db.sqlite3
-.env
+# .env
 .venv_inventory
+<<<<<<< HEAD
 /media
+=======
+/media
+# /main_project/settings.py
+>>>>>>> 2a0b656d28ded30e77c7c0a1db7a6d50511a7db9

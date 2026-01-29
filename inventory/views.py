@@ -1410,7 +1410,8 @@ class ExpenseTypesListCreateAPIView(APIView):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             validated_data = serializer.validated_data
-            serializer.create(validated_data, user=request.user)
+            # serializer.create(validated_data, user=request.user)
+            serializer.create(validated_data)
             return Response({"message": f"Expense Types created successfully."}, status=status.HTTP_201_CREATED)
                       
         except KeyError as e:
@@ -1535,7 +1536,7 @@ class OtherExpensesListCreateAPIView(APIView):
             #         {"error": "You are not authorized to retrive Other Expenses."},
             #         status=status.HTTP_403_FORBIDDEN
             #     )
-            other_expenses = OtherExpenses.objects.all().order_by('id')
+            other_expenses = OtherExpenses.objects.all().order_by('-id')
             serializer = OtherExpensesGetSerializer(other_expenses, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)              
                       
@@ -1559,8 +1560,10 @@ class OtherExpensesListCreateAPIView(APIView):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             validated_data = serializer.validated_data
-            serializer.create(validated_data, user=request.user)
-            return Response({"message": f"Other Expenses created successfully."}, status=status.HTTP_201_CREATED)
+            # serializer.create(validated_data, user=request.user)
+            serializer.create(validated_data)
+            # return Response({"message": f"Other Expenses created successfully."}, status=status.HTTP_201_CREATED)
+            return Response({"data": serializer.data}, status=status.HTTP_201_CREATED)
                       
         except KeyError as e:
             return Response(
@@ -2738,3 +2741,41 @@ class SupplierReportView(generics.GenericAPIView):
             "expenses": expenses,
         }
         return Response(self.get_serializer(payload).data, status=status.HTTP_200_OK)
+
+
+class TotalOrderAPIView(APIView):
+    # permission_classes = [AllowAny]
+    def get(self, request): 
+        try:
+            # user = request.user
+            # if not (user.role == 'Manager' or user.is_superuser == True or user.role == 'Assistant Manager' or user.role == 'Cashier'):
+            #     return Response(
+            #         {"error": "You are not authorized to retrive the Total Order."},
+            #         status=status.HTTP_403_FORBIDDEN
+            #     )
+            total_number_order = Order.objects.all().count()       
+            return Response(total_number_order, status=status.HTTP_200_OK)
+
+        except KeyError as e:
+            return Response(
+                {"error": f"An error occurred while Retriving the Total Order.  {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class TotalProductAPIView(APIView):
+    # permission_classes = [AllowAny]
+    def get(self, request): 
+        try:     
+            # user = request.user
+            # if not (user.role == 'Manager' or user.is_superuser == True or user.role == 'Assistant Manager' or user.role == 'Technical Examiner'):
+            #     return Response(
+            #         {"error": "You are not authorized to retrive the Product."},
+            #         status=status.HTTP_403_FORBIDDEN
+            #     )
+            total_number = Product.objects.all().count()       
+            return Response(total_number, status=status.HTTP_200_OK)         
+        except KeyError as e:
+            return Response(
+                {"error": f"An error occurred while Retriving the Product.  {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
