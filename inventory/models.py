@@ -272,6 +272,119 @@ class ProductLog(models.Model):
     user = models.CharField(max_length=255, null=True, blank=True)
 
 
+# New Performa
+class PerformaCustomer(models.Model):
+    customer = models.OneToOneField(CustomerInfo, on_delete=models.SET_NULL, blank=True, null=True)
+    user = models.CharField(max_length=255, default="User", null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user}"
+
+class PerformaPerforma(models.Model):
+    ACTION_CHOICES = [
+        ('Receipt', 'Receipt'),
+        ('No Receipt', 'No Receipt')
+    ]
+    customer = models.CharField(max_length=255, null=True, blank=True)
+    issued_date = models.DateTimeField(auto_now_add=True)
+    receipt = models.CharField(max_length=255, choices=ACTION_CHOICES, default="Receipt", null=True, blank=True)
+    sub_total = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    vat = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    number_of_items = models.IntegerField(null=True, blank=True)
+    user = models.CharField(max_length=255, default="User", null=True, blank=True)
+    customer_level = models.ForeignKey(PerformaCustomer, related_name='performas', on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user}"
+
+class PerformaProduct(models.Model):
+    product = models.CharField(max_length=255, default="Product", null=True, blank=True)
+    unit = models.CharField(max_length=255, default="Pcs", null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    quantity = models.PositiveIntegerField()
+    unit_price = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    total_price = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    performa = models.ForeignKey(PerformaPerforma, related_name='products', on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.description} - {self.total_price}"
+
+
+# New Purchase
+class PurchaseSupplier(models.Model):
+    status = (
+        ('Paid', 'Paid'),
+        ('Unpaid', 'Unpaid'),
+        ('Pending', 'Pending')
+    )
+    supplier = models.OneToOneField(Supplier, on_delete=models.SET_NULL, blank=True, null=True)
+    total_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    payment_status = models.CharField(max_length=50, choices=status, default='Pending')
+    paid_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0.00, null=True, blank=True)
+    unpaid_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0.00, null=True, blank=True)
+    user = models.CharField(max_length=255, default="User", null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user}"
+
+class PurchaseExpense(models.Model):
+    status=(
+        ('Paid','Paid'),
+        ('Unpaid','Unpaid'),
+        ('Pending','Pending')
+    )
+    purchase_date = models.DateField(auto_now_add=True)
+    supplier = models.CharField(max_length=255, null=True, blank=True)
+    number_of_items = models.IntegerField(null=True, blank=True)
+    total = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    payment_status = models.CharField(max_length=50, choices=status, default='Pending')
+    paid_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0.00, null=True, blank=True)
+    unpaid_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0.00, null=True, blank=True)
+    user = models.CharField(max_length=255, default="User", null=True, blank=True)
+    supplier_level = models.ForeignKey(PurchaseSupplier, related_name='expenses', on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user}"
+
+class PurchaseProduct(models.Model):
+    product = models.CharField(max_length=255, null=True, blank=True)
+    unit = models.CharField(max_length=255, default="Pcs", null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    total_price = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    expense = models.ForeignKey(PurchaseExpense, related_name='products', on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.description} - {self.total_price}"
+
+
+class SupplierPaymentLog(models.Model):
+    supplier = models.ForeignKey(PurchaseSupplier, on_delete=models.SET_NULL, related_name='logs', null=True, blank=True)
+    change_type = models.CharField(max_length=255)
+    field_name = models.CharField(max_length=100)
+    old_value = models.CharField(max_length=255, null=True, blank=True)
+    new_value = models.CharField(max_length=255, null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    user = models.CharField(max_length=255, null=True, blank=True)
+
+class ExpensePaymentLog(models.Model):
+    expense = models.ForeignKey(PurchaseExpense, on_delete=models.SET_NULL, related_name='logs', null=True, blank=True)
+    supplier = models.CharField(max_length=255, null=True, blank=True)
+    change_type = models.CharField(max_length=255)
+    field_name = models.CharField(max_length=100)
+    old_value = models.CharField(max_length=255, null=True, blank=True)
+    entered_value = models.CharField(max_length=255, null=True, blank=True)
+    new_value = models.CharField(max_length=255, null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    user = models.CharField(max_length=255, null=True, blank=True)
+
+
+
+
+
+
 
 
 @receiver(pre_save, sender=OrderItem)

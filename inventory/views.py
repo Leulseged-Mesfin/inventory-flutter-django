@@ -17,7 +17,10 @@ import openpyxl
 from .models import (
     Product, Supplier, Order, OrderItem, Category, 
     CustomerInfo, CompanyInfo, OrderLog, Report, ExpenseTypes, 
-    OtherExpenses, OrderPaymentLog, ProductLog, Bundle, Component
+    OtherExpenses, OrderPaymentLog, ProductLog, Bundle, Component,
+    PerformaCustomer, PerformaPerforma, PerformaProduct,
+    PurchaseSupplier, PurchaseExpense, PurchaseProduct,
+    SupplierPaymentLog, ExpensePaymentLog
 )
 from .serializers import (
     ProductPostSerializer, 
@@ -37,8 +40,14 @@ from .serializers import (
     OtherExpensesGetSerializer,
     OrderPaymentLogSerializer,
     ProductLogSerializer,
-    BundleSerializer
+    BundleSerializer,
+    PerformaCustomerSerializer, PerformaCustomerLightSerializer, PerformaPerformaSerializer,
+    PerformaPerformaLightSerializer, PerformaProductSerializer,PurchaseSupplierSerializer,
+    PurchaseExpenseSerializer, PurchaseProductSerializer, PurchaseSupplierLightSerializer,
+    PurchaseExpenseLightSerializer, SupplierPaymentLogSerializer, ExpensePaymentLogSerializer, 
+    ExpenseReportSerializer, SupplierReportSerializer, Supplier2ReportSerializer
 )
+
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters
 from django.db.models import Q
@@ -309,14 +318,15 @@ class SupplierListCreateAPIView(APIView):
             #         {"error": "You are not authorized to create the Supplier."},
             #         status=status.HTTP_403_FORBIDDEN
             #     ) 
-            print(user.role)
+            # print(user.role)
             serializer = SupplierSerializer(data=request.data)
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             validated_data = serializer.validated_data
             # validated_data['user'] = user
-            serializer.create(validated_data, user=request.user)
+            # serializer.create(validated_data, user=request.user)
+            serializer.create(validated_data)
             return Response({"message": "Supplier created successfully."}, status=status.HTTP_201_CREATED) 
         except KeyError as e:
             return Response(
@@ -495,7 +505,8 @@ class CustomerListCreateAPIView(APIView):
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             validated_data = serializer.validated_data
-            serializer.create(validated_data, user=request.user)
+            # serializer.create(validated_data, user=request.user)
+            serializer.create(validated_data)
             return Response({"message": f"Customer Created successfully."}, status=status.HTTP_201_CREATED)     
         except KeyError as e:
             return Response(
@@ -2139,3 +2150,591 @@ class ProductWithOutBundleAPIView(APIView):
                 {"error": f"An error occurred while Retriving the Product With Out Bundle.  {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+
+# New Perfoma Views
+class PerformaPermission(BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return user and (getattr(user, "role", None) == "Manager" or user.is_superuser or user.role == 'Assistant Manager' or user.role == 'Customer Officer')
+
+
+class PerformaCustomerListCreateView(generics.ListCreateAPIView):
+    queryset = PerformaCustomer.objects.all().order_by('-id')
+    permission_classes = [PerformaPermission]
+    serializer_class = PerformaCustomerSerializer
+    pagination_class = Pagination
+    filter_backends = [filters.SearchFilter]  # enable search
+    search_fields = ['customer__name']  # fields to search in
+
+    def get_queryset(self):
+        # only fetch id, name, email from the DB
+        return PerformaCustomer.objects.only('id', 'customer__name', 'user').select_related('customer').order_by('-id')
+
+
+    def get_serializer_class(self):
+        # Use light serializer for list, full serializer for create
+        if self.request.method == 'GET':
+            return PerformaCustomerLightSerializer
+        return PerformaCustomerSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        id = response.data.get('performas')[0]['id']
+        id = str(id).zfill(4)
+        return Response({
+            "message": "Performa Customer created successfully.",
+            "data": response.data,
+            "id": id
+        }, status=status.HTTP_201_CREATED)
+
+class PerformaCustomerDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PerformaCustomer.objects.all()
+    permission_classes = [PerformaPermission]
+    serializer_class = PerformaCustomerSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Lightweight customer (avoid heavy nested performas)
+        customer_data = PerformaCustomerLightSerializer(instance).data
+
+        # Query and paginate related performas (light fields)
+        performas_qs = (
+            instance.performas.only(
+                'id', 'issued_date', 'customer', 'receipt', 'sub_total', 'vat', 'total', 'user'
+            )
+            .order_by('-id')
+        )
+
+        # Optional search
+        search_query = request.query_params.get('search')
+        if search_query:
+            performas_qs = performas_qs.filter(
+                Q(customer__icontains=search_query)
+            )
+
+        paginator = Pagination()
+        page = paginator.paginate_queryset(performas_qs, request)
+        results = PerformaPerformaLightSerializer(page or performas_qs, many=True).data
+        all_result = PerformaPerformaLightSerializer(performas_qs, many=True).data
+
+        # zero-padded latest performa id (most recent by desc)
+        padded_id = None
+        if results:
+            latest_id = results[0]['id']
+            padded_id = str(latest_id).zfill(4)
+
+        if page is not None:
+            return Response({
+                "message": "Performa Customer retrived successfully.",
+                "data": customer_data,
+                "performas": {
+                    "count": paginator.page.paginator.count,
+                    "next": paginator.get_next_link(),
+                    "previous": paginator.get_previous_link(),
+                    "results": results,
+                    "all_results": all_result
+                },
+                "id": padded_id
+            }, status=status.HTTP_200_OK)
+
+        # Fallback without pagination
+        return Response({
+            "message": "Performa Customer retrived successfully.",
+            "data": customer_data,
+            "performas": {
+                "count": len(results),
+                "next": None,
+                "previous": None,
+                "results": results,
+            },
+            "id": padded_id
+        }, status=status.HTTP_200_OK)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        id = response.data.get('performas')[-1]['id']
+        id = str(id).zfill(4)
+        return Response({
+            "message": "Performa Customer updated successfully.",
+            "data": response.data,
+            "id": id
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Performa Customer Deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class PerformaPerformaListCreateView(generics.ListCreateAPIView):
+    queryset = PerformaPerforma.objects.all().order_by('-id')
+    permission_classes = [PerformaPermission]
+    serializer_class = PerformaPerformaSerializer
+    pagination_class = Pagination
+    filter_backends = [filters.SearchFilter]  # enable search
+    search_fields = ['customer']  # fields to search in
+    
+
+    def get_queryset(self):
+        # only fetch id, name, email from the DB
+        return PerformaPerforma.objects.only('id', 'issued_date', 'customer', 'receipt', 'sub_total', 'vat', 'total', 'user').order_by('-id')
+
+
+    def get_serializer_class(self):
+        # Use light serializer for list, full serializer for create
+        if self.request.method == 'GET':
+            return PerformaPerformaLightSerializer
+        return PerformaPerformaSerializer
+    
+    def list(self, request, *args, **kwargs):
+        # Get the queryset
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Get paginated data
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            data = self.get_paginated_response(serializer.data).data
+        else:
+            data = self.get_serializer(queryset, many=True).data
+            data = {
+                'count': len(data),
+                'results': data
+            }
+        
+        # Add all results
+        all_serializer = self.get_serializer(queryset, many=True)
+        data['all_results'] = all_serializer.data
+        
+        return Response(data)
+
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    def perform_update(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return Response({
+            "message": "Performa Performa created successfully.",
+            "data": response.data
+        }, status=status.HTTP_201_CREATED)
+
+class PerformaPerformaDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PerformaPerforma.objects.all()
+    permission_classes = [PerformaPermission]
+    serializer_class = PerformaPerformaSerializer
+
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        id = response.data.get('id')
+        id = str(id).zfill(4)
+        return Response({
+            "message": "Performa Performa retrived successfully.",
+            "data": response.data,
+            "id": id
+        }, status=status.HTTP_200_OK)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            "message": "Performa Performa updated successfully.",
+            "data": response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Performa Performa Deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class PerformaProductListCreateView(generics.ListCreateAPIView):
+    queryset = PerformaProduct.objects.all()
+    permission_classes = [PerformaPermission]
+    serializer_class = PerformaProductSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return Response({
+            "message": "Performa Product created successfully.",
+            "data": response.data
+        }, status=status.HTTP_201_CREATED)
+
+class PerformaProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PerformaProduct.objects.all()
+    permission_classes = [PerformaPermission]
+    serializer_class = PerformaProductSerializer
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            "message": "Performa Products updated successfully.",
+            "data": response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Performa Products Deleted successfully."}, status=status.HTTP_200_OK)
+
+
+
+# ------------------------------------- Purchase Views --------------------------------------------------
+
+# class PurchasePermission(BasePermission):
+#     def has_permission(self, request, view):
+#         user = request.user
+#         return user and (getattr(user, "role", None) == "Manager" or user.is_superuser or user.role == 'Store Manager' or user.role == 'Assistant Manager')
+
+
+class PurchaseSupplierListCreateView(generics.ListCreateAPIView):
+    queryset = PurchaseSupplier.objects.all().order_by('-id')
+    # permission_classes = [PurchasePermission]
+    serializer_class = PurchaseSupplierSerializer
+    pagination_class = Pagination
+    filter_backends = [filters.SearchFilter]  # enable search
+    search_fields = ['supplier__name']  # fields to search in
+
+    def get_queryset(self):
+        # only fetch id, name, email from the DB
+        return PurchaseSupplier.objects.only('id', 'supplier__name', 'total_amount', 'payment_status', 'paid_amount', 'unpaid_amount', 'user').select_related('supplier').order_by('-id')
+
+    def get_serializer_class(self):
+        # Use light serializer for list, full serializer for create
+        if self.request.method == 'GET':
+            return PurchaseSupplierLightSerializer
+        return PurchaseSupplierSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return Response({
+            "message": "Purchase Supplier created successfully.",
+            "data": response.data
+        }, status=status.HTTP_201_CREATED)
+
+class PurchaseSupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PurchaseSupplier.objects.all()
+    # permission_classes = [PurchasePermission]
+    serializer_class = PurchaseSupplierSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Lightweight customer (avoid heavy nested performas)
+        supplier_data = PurchaseSupplierLightSerializer(instance).data
+
+        # Query and paginate related performas (light fields)
+        expenses_qs = (
+            instance.expenses.only(
+                'id', 'purchase_date', 'supplier', 'total', 'payment_status', 'paid_amount', 'unpaid_amount', 'user'
+            )
+            .order_by('-id')
+        )
+
+        # Optional search
+        search_query = request.query_params.get('search')
+        if search_query:
+            expenses_qs = expenses_qs.filter(Q(supplier__icontains=search_query))
+
+        paginator = Pagination()
+        page = paginator.paginate_queryset(expenses_qs, request)
+        results = PurchaseExpenseLightSerializer(page or expenses_qs, many=True).data
+        # results = PurchaseExpenseLightSerializer(page, many=True).data
+
+        all_result = PurchaseExpenseLightSerializer(expenses_qs, many=True).data
+
+        # zero-padded latest performa id (most recent by desc)
+        padded_id = None
+        if results:
+            latest_id = results[0]['id']
+            padded_id = str(latest_id).zfill(4)
+
+        if page is not None:
+            return Response({
+                "message": "Purchase Supplier retrived successfully.",
+                "data": supplier_data,
+                "expenses": {
+                    "count": paginator.page.paginator.count,
+                    "next": paginator.get_next_link(),
+                    "previous": paginator.get_previous_link(),
+                    "results": results,
+                    "all_results": all_result
+                },
+                "id": padded_id
+            }, status=status.HTTP_200_OK)
+
+        # else:
+        #     data = self.get_serializer(expenses_qs, many=True).data
+        #     data = {
+        #         'count': len(data),
+        #         'results': data
+        #     }
+        
+        # # Add all results
+        # all_serializer = self.get_serializer(expenses_qs, many=True)
+        # data['all_results'] = all_serializer.data
+            
+
+        # Fallback without pagination
+        return Response({
+            "message": "Purchase Supplier retrived successfully.",
+            "data": supplier_data,
+            "expenses": {
+                "count": len(results),
+                "next": None,
+                "previous": None,
+                "results": results
+            },
+            "id": padded_id
+        }, status=status.HTTP_200_OK)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            "message": "Purchase Supplier updated successfully.",
+            "data": response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Purchase Supplier Deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class PurchaseExpenseListCreateView(generics.ListCreateAPIView):
+    queryset = PurchaseExpense.objects.all().order_by('-id')
+    # permission_classes = [PurchasePermission]
+    serializer_class = PurchaseExpenseSerializer
+    pagination_class = Pagination
+    filter_backends = [filters.SearchFilter]  # enable search
+    search_fields = ['supplier']  # fields to search in
+
+
+    def get_queryset(self):
+        # only fetch id, name, email from the DB
+        return PurchaseExpense.objects.only('id', 'purchase_date', 'supplier', 'total', 'payment_status', 'paid_amount', 'unpaid_amount', 'user').order_by('-id')
+
+
+    def get_serializer_class(self):
+        # Use light serializer for list, full serializer for create
+        if self.request.method == 'GET':
+            return PurchaseExpenseLightSerializer
+        return PurchaseExpenseSerializer
+    
+    def list(self, request, *args, **kwargs):
+        # Get the queryset
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Get paginated data
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            data = self.get_paginated_response(serializer.data).data
+        else:
+            data = self.get_serializer(queryset, many=True).data
+            data = {
+                'count': len(data),
+                'results': data
+            }
+        
+        # Add all results
+        all_serializer = self.get_serializer(queryset, many=True)
+        data['all_results'] = all_serializer.data
+        
+        return Response(data)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return Response({
+            "message": "Purchase Expense created successfully.",
+            "data": response.data
+        }, status=status.HTTP_201_CREATED)
+
+class PurchaseExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PurchaseExpense.objects.all()
+    # permission_classes = [PurchasePermission]
+    serializer_class = PurchaseExpenseSerializer
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            "message": "Purchase Expenses updated successfully.",
+            "data": response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Purchase Expenses Deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class PurchaseProductListCreateView(generics.ListCreateAPIView):
+    queryset = PurchaseProduct.objects.all()
+    # permission_classes = [PurchasePermission]
+    serializer_class = PurchaseProductSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return Response({
+            "message": "Purchase Product created successfully.",
+            "data": response.data
+        }, status=status.HTTP_201_CREATED)
+
+class PurchaseProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PurchaseProduct.objects.all()
+    # permission_classes = [PurchasePermission]
+    serializer_class = PurchaseProductSerializer
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            "message": "Purchase Products updated successfully.",
+            "data": response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Purchase Products Deleted successfully."}, status=status.HTTP_200_OK)
+
+
+
+class SupplierLogListView(generics.ListAPIView):
+    serializer_class = SupplierPaymentLogSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        # if not (user.role == 'Manager' or user.is_superuser == True or user.role == 'Assistant Manager'):
+        #     return Response(
+        #         {"error": "You are not authorized to retrive the Supplier Log."},
+        #         status=status.HTTP_403_FORBIDDEN
+        #     )
+        supplier_id = self.kwargs['supplier_id']
+        return SupplierPaymentLog.objects.filter(supplier_id=supplier_id).order_by('-timestamp')
+
+
+class ExpenseLogListView(generics.ListAPIView):
+    serializer_class = ExpensePaymentLogSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        # if not (user.role == 'Manager' or user.is_superuser == True or user.role == 'Assistant Manager'):
+        #     return Response(
+        #         {"error": "You are not authorized to retrive the Expense Log."},
+        #         status=status.HTTP_403_FORBIDDEN
+        #     )
+        expense_id = self.kwargs['expense_id']
+        return ExpensePaymentLog.objects.filter(expense_id=expense_id).order_by('-timestamp')
+
+
+
+class SupplierReport(generics.ListAPIView):
+    serializer_class = [PurchaseSupplierSerializer, SupplierPaymentLogSerializer]
+
+    def get_queryset(self):
+
+        supplier_id = self.kwargs['supplier_id']
+        return SupplierPaymentLog.objects.filter(supplier_id=supplier_id).order_by('-timestamp')
+
+
+class SupplierReport(generics.GenericAPIView):
+    serializer_class = SupplierReportSerializer
+
+    def get(self, request, supplier_id):
+        supplier = get_object_or_404(PurchaseSupplier, pk=supplier_id)
+        payment_logs = SupplierPaymentLog.objects.filter(
+            supplier_id=supplier_id
+        ).order_by('-timestamp')
+
+        payload = {
+            "supplier": supplier,
+            "payment_logs": payment_logs,
+        }
+        data = self.get_serializer(payload).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class ExpenseReport(generics.GenericAPIView):
+    serializer_class = ExpenseReportSerializer
+
+    def get(self, request, expense_id):
+        expense = get_object_or_404(PurchaseExpense, pk=expense_id)
+        payment_logs = ExpensePaymentLog.objects.filter(
+            expense_id=expense_id
+        ).order_by('-timestamp')
+
+        payload = {
+            "expense": expense,
+            "payment_logs": payment_logs,
+        }
+        data = self.get_serializer(payload).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+
+class SupplierReportView(generics.GenericAPIView):
+    serializer_class = Supplier2ReportSerializer
+
+    def get(self, request, supplier_id):
+        user = request.user
+        if not (user.role in ['Manager', 'Salesman', 'Sales Manager'] or user.is_superuser):
+            return Response(
+                {"error": "You are not authorized to retrieve the Supplier Report."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        start_raw = request.query_params.get('start_date')
+        end_raw = request.query_params.get('end_date')
+        start_date = parse_date(start_raw) if start_raw else None
+        end_date = parse_date(end_raw) if end_raw else None
+        if bool(start_date) ^ bool(end_date):
+            return Response(
+                {"error": "Provide both start_date and end_date, or neither."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        supplier = get_object_or_404(
+            PurchaseSupplier.objects.prefetch_related(
+                Prefetch(
+                    "expenses",
+                    queryset=PurchaseExpense.objects.prefetch_related("products", "logs")
+                )
+            ),
+            pk=supplier_id
+        )
+
+        expenses = supplier.expenses.all()
+        if start_date and end_date:
+            expenses = expenses.filter(
+                purchase_date__range=(start_date, end_date)
+            )
+        # Convert the end_date to include the entire day
+        # if start_date and end_date:
+        #     end_date_plus_1 = end_date + timezone.timedelta(days=1)
+        #     expenses = expenses.filter(
+        #         purchase_date__date__gte=start_date,
+        #         purchase_date__date__lt=end_date_plus_1
+        #     )
+
+        payload = {
+            "supplier": supplier,
+            "payment_logs": SupplierPaymentLog.objects.filter(
+                supplier_id=supplier_id
+            ).order_by('-timestamp'),
+            "expenses": expenses,
+        }
+        return Response(self.get_serializer(payload).data, status=status.HTTP_200_OK)

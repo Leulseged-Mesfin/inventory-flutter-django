@@ -69,6 +69,26 @@ from .views import (
     ProductWithBundleAPIView,
     ProductWithOutBundleAPIView,
 
+    PerformaCustomerListCreateView,
+    PerformaCustomerDetailView,
+    PerformaPerformaListCreateView,
+    PerformaPerformaDetailView,
+    PerformaProductListCreateView,
+    PerformaProductDetailView,
+
+    PurchaseExpenseListCreateView,
+    PurchaseExpenseDetailView,
+    PurchaseProductListCreateView,
+    PurchaseProductDetailView,
+    PurchaseSupplierListCreateView,
+    PurchaseSupplierDetailView,
+
+    SupplierLogListView,
+    ExpenseLogListView,
+    SupplierReport,
+    ExpenseReport,
+    SupplierReportView,
+
 )
 
 urlpatterns = [
@@ -139,4 +159,24 @@ urlpatterns = [
 
     path('product_with_bundle/', ProductWithBundleAPIView.as_view(), name='product-with-bundle-retrieve'),
     path('product_with_out_bundle/', ProductWithOutBundleAPIView.as_view(), name='product-with-out-bundle-retrieve'),
+
+    path('performa-customers/', PerformaCustomerListCreateView.as_view(), name='performa-customer-list-create'),
+    path('performa-customers/<pk>', PerformaCustomerDetailView.as_view(), name='performa-customer-list-create'),
+    path('performa-performas/', PerformaPerformaListCreateView.as_view(), name='performa-performas-list-create'),
+    path('performa-performas/<pk>', PerformaPerformaDetailView.as_view(), name='performa-performas-list-create'),
+    path('performa-products/', PerformaProductListCreateView.as_view(), name='performa-product-list-create'),
+    path('performa-products/<pk>', PerformaProductDetailView.as_view(), name='performa-product-list-create'),
+
+    path('purchase-products/', PurchaseProductListCreateView.as_view(), name='purchase-product-list-create'),
+    path('purchase-products/<pk>', PurchaseProductDetailView.as_view(), name='purchase-product-list-create'),
+    path('purchase-expenses/', PurchaseExpenseListCreateView.as_view(), name='purchase-expense-list-create'),
+    path('purchase-expenses/<pk>', PurchaseExpenseDetailView.as_view(), name='purchase-expense-list-create'),
+    path('purchase-suppliers/', PurchaseSupplierListCreateView.as_view(), name='purchase-supplier-list-create'),
+    path('purchase-suppliers/<pk>', PurchaseSupplierDetailView.as_view(), name='purchase-supplier-list-create'),
+
+    path('purchase-suppliers/<int:supplier_id>/logs', SupplierLogListView.as_view(), name='purchase-supplier-logs'),
+    # path('purchase-suppliers/<int:supplier_id>/report', SupplierReport.as_view(), name='purchase-supplier-report'),
+    path('purchase-suppliers/<int:supplier_id>/report', SupplierReportView.as_view(), name='purchase-supplier-report'),
+    path('purchase-expenses/<int:expense_id>/logs', ExpenseLogListView.as_view(), name='purchase-expense-logs'),
+    path('purchase-expenses/<int:expense_id>/report', ExpenseReport.as_view(), name='purchase-expense-report'),
 ]
